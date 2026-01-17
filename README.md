@@ -87,14 +87,21 @@ cp .env.example .env
 
 4. Configure your `.env` file with your Supabase credentials:
 ```env
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your-anon-key-here
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
+SUPABASE_URL=https://abcdefghijklmnop.supabase.co
+SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 PORT=3000
 SUPER_ADMIN_EMAIL=admin@example.com
 ```
 
-**Important**: Replace with your actual Supabase credentials from your project settings.
+**Important**: Replace with your actual Supabase credentials:
+- Go to your [Supabase Dashboard](https://app.supabase.com)
+- Select your project
+- Navigate to **Settings** > **API**
+- Copy the **Project URL** (for `SUPABASE_URL`)
+- Copy the **anon public** key (for `SUPABASE_ANON_KEY`)
+- Copy the **service_role** key (for `SUPABASE_SERVICE_ROLE_KEY`)
+- ⚠️ **Warning**: Never commit the `service_role` key or share it publicly - it bypasses all RLS policies!
 
 ## 🏃 Running the Application
 
