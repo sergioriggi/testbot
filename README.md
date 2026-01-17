@@ -365,6 +365,17 @@ curl -X GET http://localhost:3000/api/admin/dashboard \
 5. **OAuth redirect fails**: Verify redirect URIs are correctly configured in both OAuth provider console and Supabase
 6. **Profile creation fails**: Check that profiles table exists and is accessible
 
+## Security
+
+For important security considerations including rate limiting recommendations, see [SECURITY.md](SECURITY.md).
+
+**Key Points:**
+- OAuth endpoints should have rate limiting in production
+- Always use HTTPS in production
+- Never commit `.env` file with credentials
+- Rotate OAuth secrets regularly
+- Monitor for suspicious activity
+
 ## License
 
 ISC
