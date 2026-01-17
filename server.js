@@ -141,7 +141,11 @@ app.post('/api/register', async (req, res) => {
 
     if (profileError) {
       // Rollback: delete the auth user if profile creation fails
-      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+      } catch (deleteError) {
+        console.error('Failed to rollback user creation:', deleteError);
+      }
       
       return res.status(500).json({ 
         error: 'Registration Failed', 
@@ -182,8 +186,11 @@ app.post('/api/documents/upload', authMiddleware, async (req, res) => {
       });
     }
 
+    // Sanitize fileName to prevent directory traversal attacks
+    const sanitizedFileName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+
     // Create a unique file path with user ID prefix
-    const filePath = `${req.user.id}/${Date.now()}-${fileName}`;
+    const filePath = `${req.user.id}/${Date.now()}-${sanitizedFileName}`;
 
     // Generate a signed URL for upload (valid for 60 seconds)
     const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin
