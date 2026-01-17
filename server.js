@@ -115,7 +115,7 @@ app.post('/api/register', async (req, res) => {
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true // Auto-confirm email for simplicity
+      email_confirm: true // Auto-confirm for dev/demo; implement proper email verification in production
     });
 
     if (authError) {
@@ -175,7 +175,7 @@ app.post('/api/documents/upload', authenticateUser, async (req, res) => {
     const filePath = `${req.user.id}/${Date.now()}_${fileName}`;
     const bucketName = 'documents';
 
-    // Generate a signed URL for upload (valid for 60 seconds)
+    // Generate a signed URL for upload (default expiration: 2 hours)
     const { data: signedUrlData, error: signedUrlError } = await supabaseAdmin
       .storage
       .from(bucketName)
