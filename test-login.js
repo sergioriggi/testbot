@@ -35,7 +35,7 @@ async function startCallbackServer() {
       if (parsedUrl.pathname === '/auth/callback') {
         const query = parsedUrl.query;
         
-        // Supabase redirects with hash fragments, but we'll handle query params
+        // Handle OAuth callback with query params
         if (query.access_token || query.code) {
           res.writeHead(200, { 'Content-Type': 'text/html' });
           res.end(`
@@ -44,7 +44,8 @@ async function startCallbackServer() {
                 <h1>Authentication Successful!</h1>
                 <p>You can close this window and return to the terminal.</p>
                 <script>
-                  // Send the hash/query params back to the server
+                  // Extract tokens from URL hash fragments (Supabase's default)
+                  // and send them back to the server
                   const hash = window.location.hash.substring(1);
                   const params = new URLSearchParams(hash || window.location.search.substring(1));
                   const access_token = params.get('access_token');

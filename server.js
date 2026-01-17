@@ -203,17 +203,25 @@ app.post('/api/auth/callback', async (req, res) => {
 
     if (checkError && checkError.code !== 'PGRST116') {
       // PGRST116 is "not found" error, which is expected for new users
+      // For other errors, return error response
       console.error('Profile check error:', checkError);
+      return res.status(500).json({ 
+        error: 'Profile Check Failed', 
+        message: 'Failed to check user profile' 
+      });
     }
 
     if (!existingProfile) {
       // Create profile for new OAuth user
+      // Extract user's full name from OAuth metadata
+      const fullName = user.user_metadata?.full_name || user.user_metadata?.name || null;
+      
       const { data: profile, error: profileError } = await supabaseAdmin
         .from('profiles')
         .insert({
           user_id: user.id,
           email: user.email,
-          full_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
+          full_name: fullName,
           role: 'user' // Default role
         })
         .select()
