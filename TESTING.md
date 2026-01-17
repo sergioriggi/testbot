@@ -7,6 +7,24 @@
    - Get your SUPABASE_URL and keys
    - Create the profiles table (see README.md for schema)
    - Create a storage bucket named "documents"
+   - Configure Google OAuth provider in Supabase Dashboard
+   - Configure Microsoft OAuth provider in Supabase Dashboard
+
+## OAuth Provider Configuration
+
+### Google OAuth
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create OAuth 2.0 credentials
+3. Add redirect URI: `https://<your-project-ref>.supabase.co/auth/v1/callback`
+4. In Supabase Dashboard: Authentication > Providers > Enable Google
+5. Add Client ID and Client Secret
+
+### Microsoft OAuth
+1. Go to [Microsoft Azure Portal](https://portal.azure.com/)
+2. Register a new application
+3. Add redirect URI: `https://<your-project-ref>.supabase.co/auth/v1/callback`
+4. In Supabase Dashboard: Authentication > Providers > Enable Azure
+5. Add Application (client) ID and Client Secret
 
 ## Manual Testing Steps
 
@@ -41,70 +59,58 @@ Expected response:
 }
 ```
 
-### 4. Test User Registration
+### 4. Test Google OAuth Authentication
+
+Use the test script:
+
 ```bash
-curl -X POST http://localhost:3000/api/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "securepassword123",
-    "fullName": "Test User"
-  }'
+node test-login.js google
 ```
 
-Expected response:
-```json
-{
-  "message": "User registered successfully",
-  "user": {
-    "id": "uuid-here",
-    "email": "test@example.com",
-    "profile": {
-      "user_id": "uuid-here",
-      "email": "test@example.com",
-      "full_name": "Test User",
-      "role": "user"
-    }
-  }
-}
+The script will:
+1. Start a local callback server on port 8080
+2. Display an OAuth URL
+3. Wait for you to authenticate in your browser
+
+Expected output:
+```
+🔐 Testing google OAuth flow...
+
+Step 1: Getting OAuth URL from backend...
+
+📋 OAuth URL generated:
+https://accounts.google.com/o/oauth2/v2/auth?...
+
+🌐 Please open this URL in your browser to authenticate.
+⏳ Waiting for authentication...
+
+🔄 Callback server started on http://localhost:8080
+✅ Authentication successful!
+📤 Sending tokens to backend...
+
+✅ Profile created/updated successfully!
+
+👤 User Info:
+  ID: uuid-here
+  Email: user@gmail.com
+  Role: user
+
+🔑 Access Token:
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+📋 Use this token in your API calls:
+Authorization: Bearer <token>
 ```
 
-### 5. Get JWT Token
+### 5. Test Microsoft OAuth Authentication
 
-You need to use a Supabase client to login and get a JWT token. Here's a simple Node.js script:
-
-```javascript
-// test-login.js
-require('dotenv').config();
-const { createClient } = require('@supabase/supabase-js');
-
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY
-);
-
-async function login() {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: 'test@example.com',
-    password: 'securepassword123'
-  });
-
-  if (error) {
-    console.error('Login error:', error);
-    return;
-  }
-
-  console.log('Access Token:', data.session.access_token);
-}
-
-login();
+```bash
+node test-login.js microsoft
 ```
 
-Run: `node test-login.js`
+Expected output is similar to Google OAuth test.
 
 ### 6. Test Upload Endpoint
-
-Use the JWT token from step 5:
 
 ```bash
 TOKEN="your-jwt-token-here"
@@ -131,7 +137,7 @@ Expected response:
 
 ### 7. Test Admin Endpoint (Regular User)
 
-Using the same token from step 5:
+Using the token from the OAuth test:
 
 ```bash
 curl -X GET http://localhost:3000/api/admin/dashboard \
@@ -148,19 +154,16 @@ Expected response (403 Forbidden):
 
 ### 8. Test Super Admin Access
 
-1. Register a user with the SUPER_ADMIN_EMAIL:
+1. Set `SUPER_ADMIN_EMAIL` in `.env` to an email you can authenticate with (e.g., your Google or Microsoft account email)
+
+2. Authenticate using OAuth with that email:
 ```bash
-curl -X POST http://localhost:3000/api/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "admin@example.com",
-    "password": "adminpassword123",
-    "fullName": "Super Admin"
-  }'
+node test-login.js google
+# or
+node test-login.js microsoft
 ```
 
-2. Login as the super admin and get the JWT token
-3. Test the admin endpoint:
+3. Use the returned token to test the admin endpoint:
 
 ```bash
 ADMIN_TOKEN="admin-jwt-token-here"
@@ -178,8 +181,8 @@ Expected response:
     "role": "admin"
   },
   "stats": {
-    "totalUsers": 2,
-    "recentUsers": 2
+    "totalUsers": 1,
+    "recentUsers": 1
   },
   "users": [...]
 }
@@ -188,7 +191,10 @@ Expected response:
 ## Testing Checklist
 
 - [ ] Health check returns 200 OK
-- [ ] User registration creates both auth user and profile
+- [ ] Google OAuth flow generates valid OAuth URL
+- [ ] Microsoft OAuth flow generates valid OAuth URL
+- [ ] OAuth callback creates profile for new users
+- [ ] OAuth callback returns existing profile for returning users
 - [ ] Authentication middleware verifies JWT tokens
 - [ ] Upload endpoint generates signed URLs for authenticated users
 - [ ] Admin endpoint rejects regular users with 403
@@ -203,5 +209,6 @@ Expected response:
 ✅ JWT verification for all protected routes  
 ✅ Role-based access control implemented  
 ✅ Service role key used only for admin operations  
-✅ No database triggers created  
-✅ No recursive RLS policies
+✅ OAuth providers configured in Supabase  
+✅ No password storage or management  
+✅ Automatic profile creation for OAuth users

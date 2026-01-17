@@ -99,73 +99,174 @@ const requireAdmin = (req, res, next) => {
 };
 
 /**
- * POST /api/register
- * User registration endpoint - creates auth user and profile
+ * POST /api/auth/google
+ * Initiate Google OAuth flow
  */
-app.post('/api/register', async (req, res) => {
+app.post('/api/auth/google', async (req, res) => {
   try {
-    const { email, password, fullName } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ 
-        error: 'Bad Request', 
-        message: 'Email and password are required' 
-      });
-    }
-
-    // Create the auth user using service role client
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true
+    const { redirectTo } = req.body;
+    
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectTo || process.env.OAUTH_REDIRECT_URL || 'http://localhost:3000/auth/callback'
+      }
     });
 
-    if (authError) {
+    if (error) {
       return res.status(400).json({ 
-        error: 'Registration Failed', 
-        message: authError.message 
+        error: 'OAuth Initiation Failed', 
+        message: error.message 
       });
     }
 
-    // Create the profile record
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('profiles')
-      .insert({
-        user_id: authData.user.id,
-        email: email,
-        full_name: fullName || null,
-        role: 'user' // Default role
-      })
-      .select()
-      .single();
-
-    if (profileError) {
-      // Rollback: delete the auth user if profile creation fails
-      try {
-        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-      } catch (deleteError) {
-        console.error('Failed to rollback user creation:', deleteError);
-      }
-      
-      return res.status(500).json({ 
-        error: 'Registration Failed', 
-        message: 'Failed to create user profile' 
-      });
-    }
-
-    res.status(201).json({
-      message: 'User registered successfully',
-      user: {
-        id: authData.user.id,
-        email: authData.user.email,
-        profile: profile
-      }
+    res.json({
+      message: 'OAuth URL generated',
+      url: data.url
     });
   } catch (error) {
-    console.error('Registration error:', error);
+    console.error('Google OAuth error:', error);
     res.status(500).json({ 
       error: 'Internal Server Error', 
-      message: 'Registration failed' 
+      message: 'Failed to initiate Google OAuth' 
+    });
+  }
+});
+
+/**
+ * POST /api/auth/microsoft
+ * Initiate Microsoft OAuth flow
+ */
+app.post('/api/auth/microsoft', async (req, res) => {
+  try {
+    const { redirectTo } = req.body;
+    
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'azure',
+      options: {
+        redirectTo: redirectTo || process.env.OAUTH_REDIRECT_URL || 'http://localhost:3000/auth/callback',
+        scopes: 'email'
+      }
+    });
+
+    if (error) {
+      return res.status(400).json({ 
+        error: 'OAuth Initiation Failed', 
+        message: error.message 
+      });
+    }
+
+    res.json({
+      message: 'OAuth URL generated',
+      url: data.url
+    });
+  } catch (error) {
+    console.error('Microsoft OAuth error:', error);
+    res.status(500).json({ 
+      error: 'Internal Server Error', 
+      message: 'Failed to initiate Microsoft OAuth' 
+    });
+  }
+});
+
+/**
+ * POST /api/auth/callback
+ * Handle OAuth callback and create/update user profile
+ */
+app.post('/api/auth/callback', async (req, res) => {
+  try {
+    const { access_token, refresh_token } = req.body;
+
+    if (!access_token) {
+      return res.status(400).json({ 
+        error: 'Bad Request', 
+        message: 'Access token is required' 
+      });
+    }
+
+    // Get user from access token
+    const { data: { user }, error: authError } = await supabase.auth.getUser(access_token);
+
+    if (authError || !user) {
+      return res.status(401).json({ 
+        error: 'Unauthorized', 
+        message: 'Invalid access token' 
+      });
+    }
+
+    // Check if profile exists
+    const { data: existingProfile, error: checkError } = await supabaseAdmin
+      .from('profiles')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      // PGRST116 is "not found" error, which is expected for new users
+      // For other errors, return error response
+      console.error('Profile check error:', checkError);
+      return res.status(500).json({ 
+        error: 'Profile Check Failed', 
+        message: 'Failed to check user profile' 
+      });
+    }
+
+    if (!existingProfile) {
+      // Create profile for new OAuth user
+      // Extract user's full name from OAuth metadata
+      const fullName = user.user_metadata?.full_name || user.user_metadata?.name || null;
+      
+      const { data: profile, error: profileError } = await supabaseAdmin
+        .from('profiles')
+        .insert({
+          user_id: user.id,
+          email: user.email,
+          full_name: fullName,
+          role: 'user' // Default role
+        })
+        .select()
+        .single();
+
+      if (profileError) {
+        console.error('Profile creation error:', profileError);
+        return res.status(500).json({ 
+          error: 'Profile Creation Failed', 
+          message: 'Failed to create user profile' 
+        });
+      }
+
+      res.status(201).json({
+        message: 'User profile created successfully',
+        user: {
+          id: user.id,
+          email: user.email,
+          profile: profile
+        },
+        session: {
+          access_token,
+          refresh_token
+        }
+      });
+    } else {
+      // Profile already exists
+      res.json({
+        message: 'User authenticated successfully',
+        user: {
+          id: user.id,
+          email: user.email,
+          profile: existingProfile
+        },
+        session: {
+          access_token,
+          refresh_token
+        }
+      });
+    }
+  } catch (error) {
+    console.error('OAuth callback error:', error);
+    res.status(500).json({ 
+      error: 'Internal Server Error', 
+      message: 'Authentication callback failed' 
     });
   }
 });
@@ -280,11 +381,13 @@ app.get('/health', (req, res) => {
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
-    message: 'Supabase Security Middleware API',
-    version: '1.0.0',
+    message: 'Supabase Security Middleware API with OAuth',
+    version: '2.0.0',
     endpoints: {
       health: 'GET /health',
-      register: 'POST /api/register',
+      googleOAuth: 'POST /api/auth/google',
+      microsoftOAuth: 'POST /api/auth/microsoft',
+      oauthCallback: 'POST /api/auth/callback',
       upload: 'POST /api/documents/upload (requires auth)',
       adminDashboard: 'GET /api/admin/dashboard (requires admin role)'
     }

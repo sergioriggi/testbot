@@ -1,7 +1,7 @@
 {
   "name": "supabase-security-middleware",
-  "version": "1.0.0",
-  "description": "Node.js Express middleware solution for Supabase security with RLS alternative",
+  "version": "2.0.0",
+  "description": "Node.js Express middleware solution for Supabase security with OAuth authentication",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -11,7 +11,9 @@
     "supabase",
     "express",
     "security",
-    "middleware"
+    "middleware",
+    "oauth",
+    "authentication"
   ],
   "author": "",
   "license": "ISC",
